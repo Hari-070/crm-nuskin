@@ -2,11 +2,12 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/auth';
 import { prisma } from '@/lib/prisma';
 
-export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
+export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await auth();
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const { id} = await params
 
-  const lead = await prisma.lead.findUnique({ where: { id: params.id } });
+  const lead = await prisma.lead.findUnique({ where: { id: id } });
   if (!lead) return NextResponse.json({ error: 'Lead not found' }, { status: 404 });
 
   if (lead.status === 'converted' && lead.customerId) {
@@ -31,7 +32,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
   // Update lead status to converted
   await prisma.lead.update({
-    where: { id: params.id },
+    where: { id: id },
     data: {
       status: 'converted',
       convertedAt: new Date(),
@@ -41,7 +42,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
   // Cancel pending lead follow-ups
   await prisma.followUp.updateMany({
-    where: { relatedLeadId: params.id, status: 'pending' },
+    where: { relatedLeadId: id, status: 'pending' },
     data: { status: 'cancelled' },
   });
 

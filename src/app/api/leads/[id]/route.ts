@@ -2,12 +2,13 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/auth';
 import { prisma } from '@/lib/prisma';
 
-export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await auth();
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const {id} = await params
 
   const lead = await prisma.lead.findUnique({
-    where: { id: params.id },
+    where: { id: id },
     include: {
       followUps: { orderBy: { dueDate: 'asc' } },
       customer: {
@@ -26,18 +27,20 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
   return NextResponse.json({ data: lead });
 }
 
-export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
+export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await auth();
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+  const {id} = await params
 
   const body = await req.json();
   const { name, phone, email, city, source, notes, status, followUpDate } = body;
 
-  const existingLead = await prisma.lead.findUnique({ where: { id: params.id } });
+  const existingLead = await prisma.lead.findUnique({ where: { id: id } });
   if (!existingLead) return NextResponse.json({ error: 'Lead not found' }, { status: 404 });
 
   const lead = await prisma.lead.update({
-    where: { id: params.id },
+    where: { id: id },
     data: {
       ...(name && { name }),
       ...(phone && { phone }),
@@ -67,9 +70,10 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   return NextResponse.json({ data: lead });
 }
 
-export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await auth();
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const {id} = await params
 
   // Only admins can delete leads
   if ((session.user as any).role !== 'ADMIN') {
@@ -77,8 +81,8 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
   }
 
   // Delete related follow-ups first
-  await prisma.followUp.deleteMany({ where: { relatedLeadId: params.id } });
-  await prisma.lead.delete({ where: { id: params.id } });
+  await prisma.followUp.deleteMany({ where: { relatedLeadId: id } });
+  await prisma.lead.delete({ where: { id: id } });
 
   return NextResponse.json({ message: 'Lead deleted successfully' });
 }
